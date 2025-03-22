@@ -109,6 +109,7 @@ Shows all critical weather information in a clean, organized layout:
 - Cloudiness and visibility readings
 - Air quality (when available)
 - Links to weather maps
+<img width="1223" alt="Screenshot 2025-03-22 at 7 01 40 PM" src="https://github.com/user-attachments/assets/8162d6a7-013e-4e60-8c3d-9cdb8d419b50" />
 
 ### Multi-location Display
 When checking multiple saved locations:
@@ -116,6 +117,7 @@ When checking multiple saved locations:
 - Current temperature and conditions
 - Humidity and wind data
 - Clear visual organization
+<img width="1223" alt="Screenshot 2025-03-22 at 7 01 45 PM" src="https://github.com/user-attachments/assets/a217fbbf-15bd-430c-8bf2-e0b26f1dd838" />
 
 ### 5-Day Forecast Display
 Shows forecast with:
@@ -123,6 +125,7 @@ Shows forecast with:
 - Precipitation probability
 - Weather conditions
 - Organized in a 2-column layout for easy reading
+<img width="1223" alt="Screenshot 2025-03-22 at 7 01 34 PM" src="https://github.com/user-attachments/assets/b98c3518-43fc-4022-a308-c79eceb07819" />
 
 ## Data Storage
 
