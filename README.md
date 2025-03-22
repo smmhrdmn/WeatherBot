@@ -4,7 +4,7 @@ A Discord bot that allows users to check weather for multiple locations from a D
 
 ## Features
 
-- Both slash commands and message commands support
+- Both slash commands and text commands supported
 - Check weather for specific locations using `/weather [location]` or `!weather <location>`
 - Save multiple locations to check regularly
 - Retrieve weather for all saved locations with `/weather` or `!weather`
@@ -16,10 +16,10 @@ A Discord bot that allows users to check weather for multiple locations from a D
 
 ## Visual Features
 
+- Clean, modern Discord embed format
+- Intuitive field-based information layout
 - Emoji-based weather indicators
-- Clean, organized section format
 - Dynamic weather colors based on conditions
-- Temperature and condition highlighting
 - Air quality information (when available)
 - Interactive weather map links
 
@@ -76,7 +76,6 @@ A Discord bot that allows users to check weather for multiple locations from a D
 
    To keep the bot running 24/7:
    ```
-
    npm run setup-pm2
    ```
 
@@ -100,6 +99,31 @@ A Discord bot that allows users to check weather for multiple locations from a D
 - `!forecast <location>` - Get 5-day weather forecast
 - `!help` - Show help message with available commands
 
+## Screenshots
+
+### Current Weather Display
+Shows all critical weather information in a clean, organized layout:
+- Current conditions with descriptive emoji
+- Temperature with "feels like" reading
+- Humidity and wind information
+- Cloudiness and visibility readings
+- Air quality (when available)
+- Links to weather maps
+
+### Multi-location Display
+When checking multiple saved locations:
+- Each location shows key information at a glance
+- Current temperature and conditions
+- Humidity and wind data
+- Clear visual organization
+
+### 5-Day Forecast Display
+Shows forecast with:
+- Daily temperature ranges
+- Precipitation probability
+- Weather conditions
+- Organized in a 2-column layout for easy reading
+
 ## Data Storage
 
 The bot stores location data in a JSON file at `data/locations.json`. This file is created automatically when the first location is added.
@@ -109,8 +133,9 @@ The bot stores location data in a JSON file at `data/locations.json`. This file 
 To manage the bot with PM2:
 
 - Start: `npm run setup-pm2`
-- Stop: `npm run stop-pm2`
-- Restart: `npm run restart-pm2`
+- Stop: `pm2 stop weather-bot`
+- Delete: `pm2 delete weather-bot`
+- Restart: `pm2 restart weather-bot --update-env` 
 - View logs: `npm run logs`
 
 ## License

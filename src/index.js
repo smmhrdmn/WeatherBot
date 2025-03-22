@@ -89,7 +89,7 @@ const getAqiDescription = (aqi) => {
 };
 
 // Helper function to create clean, organized sections
-const createBox = (title, content) => {
+const createSection = (title, content) => {
   const contentLines = Array.isArray(content) ? content : [content];
   
   return [
@@ -133,8 +133,7 @@ function createForecastDisplay(forecastData, dayForecasts, mapUrls) {
   else if (dominantWeatherId > 800) weatherEmoji = '⛅'; // Partly cloudy
   
   // Create a summary of next few days overview
-  const forecastSummary = [];
-  forecastSummary.push('### 5-Day Forecast Overview');
+  const forecastDays = [];
   
   // Process each day's forecast
   Object.entries(dayForecasts).forEach(([day, forecasts]) => {
@@ -172,28 +171,50 @@ function createForecastDisplay(forecastData, dayForecasts, mapUrls) {
     const date = new Date(day);
     const dayName = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     
-    // Create a clean, readable forecast line for each day
-    const precipInfo = precipProb !== null ? `☔ ${precipProb}% chance of precipitation` : '';
-    forecastSummary.push(`**${dayName}**: ${emoji} ${dominantWeather.description.charAt(0).toUpperCase() + dominantWeather.description.slice(1)}, 🌡️ ${minTemp}°F to ${maxTemp}°F ${precipInfo}`);
+    // Create a clean, readable forecast data for each day
+    const precipInfo = precipProb !== null ? `${precipProb}%` : 'N/A';
+    const description = dominantWeather.description.charAt(0).toUpperCase() + dominantWeather.description.slice(1);
+    
+    forecastDays.push({
+      dayName,
+      emoji,
+      description,
+      minTemp,
+      maxTemp,
+      precipProb: precipInfo
+    });
   });
   
-  // Weather maps - simplified and clean
-  const mapsSection = [
-    `[🌧️ Rain Map](${mapUrls.rainMap}) • [🌡️ Temperature Map](${mapUrls.tempMap}) • [☁️ Cloud Map](${mapUrls.cloudMap})`
-  ].join('\n');
+  // Create the days forecast field rows
+  const forecastRows = forecastDays.map(day => {
+    return `**${day.dayName}** ${day.emoji} ${day.description}\n🌡️ ${day.minTemp}°F to ${day.maxTemp}°F | ☔ ${day.precipProb}`;
+  });
+
+  // Create clean weather maps section
+  const mapsSection = `[🌧️ Rain](${mapUrls.rainMap}) • [🌡️ Temperature](${mapUrls.tempMap}) • [☁️ Cloud](${mapUrls.cloudMap})`;
   
   // Create embed with dynamic color based on weather
   const embed = new EmbedBuilder()
     .setTitle(`${weatherEmoji} 5-Day Forecast for ${cityName}${stateInfo}, ${countryCode}`)
-    .setColor(0x0099FF)
-    .setDescription([
-      `**Coordinates:** ${forecastData.city.coord.lat.toFixed(2)}, ${forecastData.city.coord.lon.toFixed(2)}`,
-      '',
-      ...forecastSummary
-    ].join('\n'))
+    .setColor(getWeatherColor(dominantWeatherId))
+    .setDescription(`**Coordinates:** ${forecastData.city.coord.lat.toFixed(2)}, ${forecastData.city.coord.lon.toFixed(2)}`)
     .setThumbnail(`https://openweathermap.org/img/wn/${dayForecasts[Object.keys(dayForecasts)[0]][0].weather[0].icon}@4x.png`)
     .setFooter({ text: `Data provided by OpenWeatherMap • Updated ${new Date().toLocaleTimeString()}` })
     .setTimestamp();
+
+  // Add each day as a separate field for better organization
+  forecastDays.forEach((day, index) => {
+    embed.addFields({
+      name: `${day.emoji} ${day.dayName}`,
+      value: `${day.description}\n🌡️ ${day.minTemp}°F to ${day.maxTemp}°F\n☔ Precipitation: ${day.precipProb}`,
+      inline: true
+    });
+    
+    // Add a blank field every 2 fields to create a 2-column layout
+    if (index % 2 === 1 && index < forecastDays.length - 1) {
+      embed.addFields({ name: '\u200B', value: '\u200B', inline: true });
+    }
+  });
   
   // Add maps section
   embed.addFields({ name: 'Weather Maps', value: mapsSection, inline: false });
@@ -353,107 +374,10 @@ function formatWeather(weatherData) {
   else if (weatherId === 800) weatherEmoji = '☀️'; // Clear
   else if (weatherId > 800) weatherEmoji = '⛅'; // Partly cloudy
   
-  // Create improved temperature visual bar using Unicode block elements
-  // This creates a more visually appealing gradient
-  const tempGradientChars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-  const getGradientBar = (value, min, max, width) => {
-    // Normalize the value to a 0-1 range
-    const normalizedValue = Math.max(0, Math.min(1, (value - min) / (max - min)));
-    // Calculate position in the bar
-    const position = Math.floor(normalizedValue * width);
-    
-    let bar = '';
-    for (let i = 0; i < width; i++) {
-      // Use different block characters based on proximity to the position
-      const distance = Math.abs(i - position);
-      const charIndex = distance >= tempGradientChars.length ? 
-                        tempGradientChars.length - 1 : 
-                        tempGradientChars.length - 1 - distance;
-      bar += tempGradientChars[Math.max(0, charIndex)];
-    }
-    return bar;
-  };
-  
-  // Temperature bar (for temperatures from -20°F to 120°F)
-  const tempBar = getGradientBar(temp, -20, 120, 10);
-  
-  // MinMax Temperature Range Bar
-  let tempRangeBar = '';
-  if (tempMin !== null && tempMax !== null) {
-    // Create a range bar for min to max temp with gradient in between
-    const rangeWidth = 10;
-    const minPos = Math.max(0, Math.min(rangeWidth - 1, Math.round((tempMin + 20) / 140 * rangeWidth)));
-    const maxPos = Math.max(0, Math.min(rangeWidth - 1, Math.round((tempMax + 20) / 140 * rangeWidth)));
-    
-    for (let i = 0; i < rangeWidth; i++) {
-      if (i < minPos) {
-        tempRangeBar += '▁';
-      } else if (i > maxPos) {
-        tempRangeBar += '▁';
-      } else {
-        // Add a gradient between min and max
-        const gradientPos = Math.floor(((i - minPos) / (maxPos - minPos + 0.1)) * tempGradientChars.length);
-        tempRangeBar += tempGradientChars[Math.min(tempGradientChars.length - 1, Math.max(0, gradientPos))];
-      }
-    }
-  }
-  
-  // Create improved cloudiness bar
-  let cloudinessBar = '';
-  if (cloudiness !== null) {
-    const cloudLevel = Math.round(cloudiness / 100 * 8); // 0-8 scale matching our gradient chars
-    for (let i = 0; i < 8; i++) {
-      cloudinessBar += i < cloudLevel ? '█' : '▁';
-    }
-  }
-  
-  // Humidity bar using the same gradient system
-  const humidityBar = getGradientBar(humidity, 0, 100, 8);
-  
-  // Visibility bar - full visibility is typically 10 miles
-  const visibilityBar = visibility ? getGradientBar(visibility, 0, 10, 8) : '';
-  
-  // Wind speed bar - 0-50 mph range
-  const windBar = getGradientBar(windSpeed, 0, 50, 8);
-  
   // Time of day indicator (day/night)
   const currentTime = Math.floor(Date.now() / 1000); // Current time in Unix timestamp
   const isDaytime = sunrise && sunset ? (currentTime > weatherData.sys.sunrise && currentTime < weatherData.sys.sunset) : null;
   const timeOfDayEmoji = isDaytime === null ? '' : (isDaytime ? '☀️' : '🌙');
-  
-  // Create fancy card-style boxes using Unicode box drawing characters
-  const createHeaderBox = (title) => {
-    const boxWidth = title.length + 4;
-    return `┌${'─'.repeat(boxWidth)}┐\n│  ${title}  │\n└${'─'.repeat(boxWidth)}┘`;
-  };
-  
-  const createDataBox = (title, value, barValue = '') => {
-    const boxWidth = Math.max(title.length, value.length, barValue.length) + 4;
-    let box = `┌${'─'.repeat(boxWidth)}┐\n`;
-    box += `│  ${title.padEnd(boxWidth - 4)}  │\n`;
-    box += `│  ${value.padEnd(boxWidth - 4)}  │\n`;
-    if (barValue) {
-      box += `│  ${barValue.padEnd(boxWidth - 4)}  │\n`;
-    }
-    box += `└${'─'.repeat(boxWidth)}┘`;
-    return box;
-  };
-  
-  // Create compass rose for wind direction
-  let compassRose = '';
-  if (windDirection) {
-    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-    const dirIndex = Math.round(weatherData.wind.deg / 45) % 8;
-    const highlighedDir = dirs[dirIndex];
-    
-    compassRose = `    N    \n    ${highlighedDir === 'N' ? '↑' : '|'}    \nNW ${highlighedDir === 'NW' ? '←' : '-'} + ${highlighedDir === 'NE' ? '→' : '-'} NE\n ${highlighedDir === 'W' ? '←' : '-'}  🌬️  ${highlighedDir === 'E' ? '→' : '-'} \nSW ${highlighedDir === 'SW' ? '←' : '-'} + ${highlighedDir === 'SE' ? '→' : '-'} SE\n    ${highlighedDir === 'S' ? '↓' : '|'}    \n    S    `;
-  }
-  
-  // Card layouts for different data sections
-  const tempCard = createDataBox('TEMPERATURE', `${temp}°F (Feels ${feelsLike}°F)`, tempBar);
-  const humidityCard = createDataBox('HUMIDITY', `${humidity}%`, humidityBar);
-  const windCard = createDataBox('WIND', `${windSpeed} mph ${windDirection}`, windBar);
-  const cloudsCard = createDataBox('CLOUDINESS', `${cloudiness}%`, cloudinessBar);
   
   return {
     name: displayName,
@@ -471,11 +395,6 @@ function formatWeather(weatherData) {
     windGust,
     visibility,
     cloudiness,
-    cloudinessBar,
-    humidityBar,
-    visibilityBar,
-    windBar,
-    compassRose,
     rain1h,
     snow1h,
     sunrise,
@@ -486,17 +405,9 @@ function formatWeather(weatherData) {
     tempColor,
     tempMin,
     tempMax,
-    tempBar,
-    tempRangeBar,
-    tempCard,
-    humidityCard, 
-    windCard,
-    cloudsCard,
     weatherEmoji,
     timeOfDayEmoji,
     isDaytime,
-    createHeaderBox,
-    createDataBox,
     coords: {
       lat: weatherData.coord.lat,
       lon: weatherData.coord.lon
@@ -636,91 +547,108 @@ function createWeatherDisplay(formattedWeather, mapUrls) {
   // Create capitalized description
   const capitalizedDescription = formattedWeather.description.charAt(0).toUpperCase() + formattedWeather.description.slice(1);
   
-  // Create a cleaner temperature display
+  // Create temperature display
   const tempDisplay = `${formattedWeather.temp}°F (Feels like ${formattedWeather.feelsLike}°F)`;
   const tempRangeDisplay = formattedWeather.tempMin !== null && formattedWeather.tempMax !== null ? 
-    `Range: ${formattedWeather.tempMin}°F - ${formattedWeather.tempMax}°F` : '';
-  
-  // Current conditions section
-  const currentConditionsSection = [
-    `🌡️ **Temperature:** ${tempDisplay}`,
-    tempRangeDisplay ? `${tempRangeDisplay}` : '',
-    `💧 **Humidity:** ${formattedWeather.humidity}%`,
-    `🌬️ **Wind:** ${formattedWeather.windSpeed} mph ${formattedWeather.windDirection || ''}${formattedWeather.windGust ? ` (Gusts: ${Math.round(formattedWeather.windGust)} mph)` : ''}`,
-  ].filter(Boolean).join('\n');
-  
-  // Create a less detailed but more readable details section
-  const detailsSection = [
-    `☁️ **Cloudiness:** ${formattedWeather.cloudiness !== null ? formattedWeather.cloudiness + '%' : 'N/A'}`,
-    `👁️ **Visibility:** ${formattedWeather.visibility ? formattedWeather.visibility + ' miles' : 'N/A'}`,
-    `🧭 **Pressure:** ${formattedWeather.pressure ? formattedWeather.pressure + ' hPa' : 'N/A'}`
-  ].join('\n');
-  
-  // Sun times section - simpler
-  const sunTimesSection = [
-    `🌅 **Sunrise:** ${formattedWeather.sunrise || 'N/A'}`,
-    `🌇 **Sunset:** ${formattedWeather.sunset || 'N/A'}`
-  ].join('\n');
-  
-  // Air quality section - only if available
-  let airQualitySection = '';
-  if (formattedWeather.aqi !== null) {
-    const aqiInfo = getAqiDescription(formattedWeather.aqi);
+    `${formattedWeather.tempMin}°F - ${formattedWeather.tempMax}°F` : '';
     
-    airQualitySection = [
-      `${aqiInfo.emoji} **Air Quality:** ${aqiInfo.label} (${formattedWeather.aqi}/5)`,
-      aqiInfo.description
-    ].join('\n');
-  }
-  
-  // Precipitation - only if available
-  let precipitationSection = '';
-  if (formattedWeather.rain1h !== null || formattedWeather.snow1h !== null) {
-    const precipType = formattedWeather.rain1h !== null ? 'Rainfall' : 'Snowfall';
-    const precipValue = formattedWeather.rain1h !== null ? formattedWeather.rain1h : formattedWeather.snow1h;
-    const precipEmoji = formattedWeather.rain1h !== null ? '☔' : '❄️';
-    
-    precipitationSection = `${precipEmoji} **${precipType}:** ${precipValue} mm`;
-  }
+  // Format wind info
+  const windInfo = formattedWeather.windDirection ? 
+    `${formattedWeather.windSpeed} mph ${formattedWeather.windDirection}` : 
+    `${formattedWeather.windSpeed} mph`;
+  const gustInfo = formattedWeather.windGust ? 
+    `Gusts: ${Math.round(formattedWeather.windGust)} mph` : '';
   
   // Maps section - clean links
-  const mapsSection = [
-    `[🌧️ Rain Map](${mapUrls.rainMap}) • [🌡️ Temperature Map](${mapUrls.tempMap}) • [☁️ Cloud Map](${mapUrls.cloudMap})`
-  ].join('\n');
+  const mapsSection = `[🌧️ Rain](${mapUrls.rainMap}) • [🌡️ Temperature](${mapUrls.tempMap}) • [☁️ Cloud](${mapUrls.cloudMap})`;
   
   // Create embed with dynamic color based on weather
   const embed = new EmbedBuilder()
     .setTitle(`${formattedWeather.weatherEmoji} Weather in ${formattedWeather.name}, ${formattedWeather.country}`)
     .setColor(formattedWeather.weatherColor)
     .setThumbnail(formattedWeather.iconUrl)
-    .setDescription([
-      `**${capitalizedDescription}**`,
-      `**Coordinates:** ${formattedWeather.coords.lat.toFixed(2)}, ${formattedWeather.coords.lon.toFixed(2)}`,
-      '',
-      '### Current Conditions',
-      currentConditionsSection,
-      '',
-      '### Details',
-      detailsSection,
-      '',
-      '### Sun Times',
-      sunTimesSection
-    ].filter(Boolean).join('\n'))
+    .setDescription(`**${capitalizedDescription}**\n**Coordinates:** ${formattedWeather.coords.lat.toFixed(2)}, ${formattedWeather.coords.lon.toFixed(2)}`)
     .setFooter({ text: `Data provided by OpenWeatherMap • Updated ${new Date().toLocaleTimeString()}` })
     .setTimestamp();
   
+  // Add temperature field
+  embed.addFields({
+    name: '🌡️ Temperature',
+    value: `${tempDisplay}${tempRangeDisplay ? '\nRange: ' + tempRangeDisplay : ''}`,
+    inline: true
+  });
+  
+  // Add humidity field
+  embed.addFields({
+    name: '💧 Humidity',
+    value: `${formattedWeather.humidity}%`,
+    inline: true
+  });
+  
+  // Add wind field
+  embed.addFields({
+    name: '🌬️ Wind',
+    value: `${windInfo}${gustInfo ? '\n' + gustInfo : ''}`,
+    inline: true
+  });
+  
+  // Add cloudiness field
+  embed.addFields({
+    name: '☁️ Cloudiness',
+    value: `${formattedWeather.cloudiness !== null ? formattedWeather.cloudiness + '%' : 'N/A'}`,
+    inline: true
+  });
+  
+  // Add visibility field
+  embed.addFields({
+    name: '👁️ Visibility',
+    value: `${formattedWeather.visibility ? formattedWeather.visibility + ' miles' : 'N/A'}`,
+    inline: true
+  });
+  
+  // Add pressure field
+  embed.addFields({
+    name: '🧭 Pressure',
+    value: `${formattedWeather.pressure ? formattedWeather.pressure + ' hPa' : 'N/A'}`,
+    inline: true
+  });
+  
+  // Add sun times field
+  embed.addFields({
+    name: '☀️ Sun Times',
+    value: `🌅 Sunrise: ${formattedWeather.sunrise || 'N/A'}\n🌇 Sunset: ${formattedWeather.sunset || 'N/A'}`,
+    inline: false
+  });
+  
   // Add air quality if available
-  if (airQualitySection) {
-    embed.addFields({ name: 'Air Quality', value: airQualitySection, inline: false });
+  if (formattedWeather.aqi !== null) {
+    const aqiInfo = getAqiDescription(formattedWeather.aqi);
+    embed.addFields({ 
+      name: `${aqiInfo.emoji} Air Quality`,
+      value: `${aqiInfo.label} (${formattedWeather.aqi}/5)\n${aqiInfo.description}`,
+      inline: false 
+    });
   }
   
   // Add precipitation if available
-  if (precipitationSection) {
-    embed.addFields({ name: 'Precipitation', value: precipitationSection, inline: false });
+  if (formattedWeather.rain1h !== null || formattedWeather.snow1h !== null) {
+    const precipType = formattedWeather.rain1h !== null ? 'Rainfall' : 'Snowfall';
+    const precipValue = formattedWeather.rain1h !== null ? formattedWeather.rain1h : formattedWeather.snow1h;
+    const precipEmoji = formattedWeather.rain1h !== null ? '☔' : '❄️';
+    
+    embed.addFields({ 
+      name: `${precipEmoji} Precipitation`,
+      value: `${precipType}: ${precipValue} mm`,
+      inline: false 
+    });
   }
   
   // Add maps section
-  embed.addFields({ name: 'Weather Maps', value: mapsSection, inline: false });
+  embed.addFields({ 
+    name: '🗺️ Weather Maps',
+    value: mapsSection,
+    inline: false 
+  });
   
   return embed;
 }
@@ -783,44 +711,20 @@ client.on(Events.InteractionCreate, async interaction => {
       validWeatherData.forEach(data => {
         const formatted = formatWeather(data);
         
-        // Create a clean, consistent display similar to the single location view
-        const tempDisplay = `${formatted.temp}°F (Feels like: ${formatted.feelsLike}°F)`;
-        const tempRange = formatted.tempMin !== null && formatted.tempMax !== null ? 
-          `Range: ${formatted.tempMin}°F - ${formatted.tempMax}°F` : '';
-        
-        // Format wind with direction if available
-        const windInfo = formatted.windDirection ? 
-          `${formatted.windSpeed} mph ${formatted.windDirection}` : 
-          `${formatted.windSpeed} mph`;
-        
-        // Air quality info if available
-        const aqiDisplay = formatted.aqi !== null ? 
-          `| ${getAqiDescription(formatted.aqi).emoji} AQI: ${getAqiDescription(formatted.aqi).label}` : 
-          '';
-        
         // Capitalize weather description
         const capitalizedDescription = formatted.description.charAt(0).toUpperCase() + formatted.description.slice(1);
         
         // Create a consistent, clean field for each location
         embed.addFields({
           name: `${formatted.weatherEmoji} ${formatted.name}, ${formatted.country}`,
-          value: [
-            `**${capitalizedDescription}**`,
-            '',
-            `🌡️ **Temperature:** ${tempDisplay}`,
-            tempRange ? `${tempRange}` : '',
-            `💧 **Humidity:** ${formatted.humidity}% | 🌬️ **Wind:** ${windInfo} ${aqiDisplay}`,
-            `🌅 **Sunrise:** ${formatted.sunrise || 'N/A'} | 🌇 **Sunset:** ${formatted.sunset || 'N/A'}`,
-            '',
-            `[View detailed forecast](/weather ${formatted.name})`
-          ].filter(Boolean).join('\n'),
+          value: `**${capitalizedDescription}** • ${formatted.temp}°F\n🌡️ Feels like: ${formatted.feelsLike}°F | 💧 Humidity: ${formatted.humidity}%\n🌬️ Wind: ${formatted.windSpeed} mph ${formatted.windDirection || ''}`,
           inline: false,
         });
       });
       
       // Add a helpful tip
       embed.addFields({
-        name: 'Need more details?',
+        name: '🔍 Need more details?',
         value: 'Use `/weather <location_name>` to get detailed weather for a specific location.',
         inline: false
       });
@@ -892,9 +796,10 @@ client.on(Events.InteractionCreate, async interaction => {
     const locationList = locations.map((loc, index) => `${index + 1}. ${loc}`).join('\n');
     
     const embed = new EmbedBuilder()
-      .setTitle('Saved Locations')
+      .setTitle('📍 Saved Locations')
       .setDescription(locationList)
       .setColor(0x0099FF)
+      .setFooter({ text: `Use /weather to see current conditions for all locations` })
       .setTimestamp();
     
     interaction.editReply({ embeds: [embed] });
@@ -1041,51 +946,27 @@ client.on(Events.InteractionCreate, async interaction => {
   if (commandName === 'weatherhelp') {
     const embed = new EmbedBuilder()
       .setTitle('🌦️ Weather Bot Commands')
-      .setDescription('Here are all the available commands and features you can use with the Weather Bot:')
+      .setDescription('Here are all the available commands and features:')
       .setColor(0x0099FF)
       .addFields(
         { 
-          name: '📊 Weather Information', 
-          value: [
-            '`/weather` - Show detailed weather for all saved locations',
-            '`/weather [location]` - Show comprehensive weather for a specific location',
-            '`/forecast <location>` - Get detailed 5-day weather forecast with time breakdown'
-          ].join('\n'),
+          name: '📊 Weather Commands', 
+          value: '`/weather` - Current weather for saved locations\n`/weather [location]` - Weather for specific location\n`/forecast <location>` - 5-day weather forecast',
+          inline: true 
+        },
+        { 
+          name: '📝 Location Commands', 
+          value: '`/addlocation <location>` - Save location\n`/removelocation <location>` - Remove location\n`/listlocations` - See saved locations',
+          inline: true 
+        },
+        { 
+          name: '🗺️ Weather Maps', 
+          value: 'Each weather display includes links to:\n• Rain/precipitation maps\n• Temperature maps\n• Cloud coverage maps',
           inline: false 
         },
         { 
-          name: '📝 Location Management', 
-          value: [
-            '`/addlocation <location>` - Add a location to your saved locations',
-            '`/removelocation <location>` - Remove a location from your saved locations',
-            '`/listlocations` - List all your saved locations'
-          ].join('\n'),
-          inline: false 
-        },
-        { 
-          name: '🌟 Enhanced Features', 
-          value: [
-            '• **Visual Weather Indicators** - Temperature bars, cloud coverage visualization',
-            '• **Dynamic Weather Colors** - UI colors change based on weather conditions',
-            '• **Interactive Weather Maps** - Access to rain, temperature and cloud maps',
-            '• **Air Quality Information** - AQI and detailed pollutant data where available',
-            '• **Time-of-Day Awareness** - Day/night indicators based on sunrise/sunset',
-            '• **Daily Breakdown** - Morning, afternoon, and evening forecasts',
-            '• **Hourly Forecasts** - Detailed hourly weather for the current day',
-            '• **Weather Trends** - Temperature ranges and precipitation probabilities'
-          ].join('\n'),
-          inline: false 
-        },
-        { 
-          name: '🔍 Detailed Weather Data', 
-          value: [
-            '• Wind speed, direction, and gusts',
-            '• Humidity and atmospheric pressure',
-            '• Visibility and cloudiness percentage',
-            '• Precipitation measurements and probabilities',
-            '• Sunrise and sunset times',
-            '• Temperature feels-like and min/max values'
-          ].join('\n'),
+          name: '🌡️ Weather Data', 
+          value: 'Temperature • Humidity • Wind • Pressure • Visibility • Cloudiness • Sunrise/Sunset • Air Quality (where available)',
           inline: false 
         },
         { 
@@ -1168,42 +1049,20 @@ client.on('messageCreate', async (message) => {
       validWeatherData.forEach(data => {
         const formatted = formatWeather(data);
         
-        // Create a clean, consistent display similar to the single location view
-        const tempDisplay = `${formatted.temp}°F (Feels like: ${formatted.feelsLike}°F)`;
-        const tempRange = formatted.tempMin !== null && formatted.tempMax !== null ? 
-          `Range: ${formatted.tempMin}°F - ${formatted.tempMax}°F` : '';
-        
-        // Format wind with direction if available
-        const windInfo = formatted.windDirection ? 
-          `${formatted.windSpeed} mph ${formatted.windDirection}` : 
-          `${formatted.windSpeed} mph`;
-        
-        // Air quality info if available
-        const aqiDisplay = formatted.aqi !== null ? 
-          `| ${getAqiDescription(formatted.aqi).emoji} AQI: ${getAqiDescription(formatted.aqi).label}` : 
-          '';
-        
         // Capitalize weather description
         const capitalizedDescription = formatted.description.charAt(0).toUpperCase() + formatted.description.slice(1);
         
         // Create a consistent, clean field for each location
         mainEmbed.addFields({
           name: `${formatted.weatherEmoji} ${formatted.name}, ${formatted.country}`,
-          value: [
-            `**${capitalizedDescription}**`,
-            '',
-            `🌡️ **Temperature:** ${tempDisplay}`,
-            tempRange ? `${tempRange}` : '',
-            `💧 **Humidity:** ${formatted.humidity}% | 🌬️ **Wind:** ${windInfo} ${aqiDisplay}`,
-            `🌅 **Sunrise:** ${formatted.sunrise || 'N/A'} | 🌇 **Sunset:** ${formatted.sunset || 'N/A'}`
-          ].filter(Boolean).join('\n'),
+          value: `**${capitalizedDescription}** • ${formatted.temp}°F\n🌡️ Feels like: ${formatted.feelsLike}°F | 💧 Humidity: ${formatted.humidity}%\n🌬️ Wind: ${formatted.windSpeed} mph ${formatted.windDirection || ''}`,
           inline: false,
         });
       });
       
       // Add a helpful tip
       mainEmbed.addFields({
-        name: 'Need more details?',
+        name: '🔍 Need more details?',
         value: 'Use `!weather <location_name>` to get detailed weather for a specific location.',
         inline: false
       });
@@ -1277,9 +1136,10 @@ client.on('messageCreate', async (message) => {
     const locationList = locations.map((loc, index) => `${index + 1}. ${loc}`).join('\n');
     
     const embed = new EmbedBuilder()
-      .setTitle('Saved Locations')
+      .setTitle('📍 Saved Locations')
       .setDescription(locationList)
       .setColor(0x0099FF)
+      .setFooter({ text: `Use !weather to see current conditions for all locations` })
       .setTimestamp();
     
     message.reply({ embeds: [embed] });
@@ -1408,59 +1268,32 @@ client.on('messageCreate', async (message) => {
   if (command === 'help') {
     const embed = new EmbedBuilder()
       .setTitle('🌦️ Weather Bot Commands')
-      .setDescription('Here are all the available commands and features you can use with the Weather Bot:')
+      .setDescription('Here are all the available commands and features:')
       .setColor(0x0099FF)
       .addFields(
         { 
-          name: '📊 Weather Information', 
-          value: [
-            '`!weather` - Show detailed weather for all saved locations',
-            '`!weather <location>` - Show comprehensive weather for a specific location',
-            '`!forecast <location>` - Get detailed 5-day weather forecast with time breakdown'
-          ].join('\n'),
+          name: '📊 Weather Commands', 
+          value: '`!weather` - Current weather for saved locations\n`!weather [location]` - Weather for specific location\n`!forecast <location>` - 5-day weather forecast',
+          inline: true 
+        },
+        { 
+          name: '📝 Location Commands', 
+          value: '`!addlocation <location>` - Save location\n`!removelocation <location>` - Remove location\n`!listlocations` - See saved locations',
+          inline: true 
+        },
+        { 
+          name: '🗺️ Weather Maps', 
+          value: 'Each weather display includes links to:\n• Rain/precipitation maps\n• Temperature maps\n• Cloud coverage maps',
           inline: false 
         },
         { 
-          name: '📝 Location Management', 
-          value: [
-            '`!addlocation <location>` - Add a location to your saved locations',
-            '`!removelocation <location>` - Remove a location from your saved locations',
-            '`!listlocations` - List all your saved locations'
-          ].join('\n'),
-          inline: false 
-        },
-        { 
-          name: '🌟 Enhanced Features', 
-          value: [
-            '• **Visual Weather Indicators** - Temperature bars, cloud coverage visualization',
-            '• **Dynamic Weather Colors** - UI colors change based on weather conditions',
-            '• **Interactive Weather Maps** - Access to rain, temperature and cloud maps',
-            '• **Air Quality Information** - AQI and detailed pollutant data where available',
-            '• **Time-of-Day Awareness** - Day/night indicators based on sunrise/sunset',
-            '• **Daily Breakdown** - Morning, afternoon, and evening forecasts',
-            '• **Hourly Forecasts** - Detailed hourly weather for the current day',
-            '• **Weather Trends** - Temperature ranges and precipitation probabilities'
-          ].join('\n'),
-          inline: false 
-        },
-        { 
-          name: '🔍 Detailed Weather Data', 
-          value: [
-            '• Wind speed, direction, and gusts',
-            '• Humidity and atmospheric pressure',
-            '• Visibility and cloudiness percentage',
-            '• Precipitation measurements and probabilities',
-            '• Sunrise and sunset times',
-            '• Temperature feels-like and min/max values'
-          ].join('\n'),
+          name: '🌡️ Weather Data', 
+          value: 'Temperature • Humidity • Wind • Pressure • Visibility • Cloudiness • Sunrise/Sunset • Air Quality (where available)',
           inline: false 
         },
         { 
           name: '❓ Help & Debug', 
-          value: [
-            '`!help` - Show this help message',
-            '`!debugweather <location>` - Debug weather API call (admin only)'
-          ].join('\n'),
+          value: '`!help` - Show this help message\n`!debugweather <location>` - Debug API call (admin only)',
           inline: false 
         },
         {
